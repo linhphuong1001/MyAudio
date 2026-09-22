@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  user
+  admin
+}
+
+enum StoryStatus {
+  ongoing
+  completed
+}
+
+enum ChapterStatus {
+  pending
+  generating
+  processing_tts
+  ready
+  failed
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  avatarUrl    String?  @map("avatar_url")
+  role         Role     @default(user)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  favorites          Favorite[]
+  listeningProgress  ListeningProgress[]
+
+  @@map("users")
+}
+
+/// Dữ liệu crawl thô, chỉ dùng nội bộ làm "cảm hứng" cho AI Generator.
+/// Không có API public, không hiển thị lên website.
+model SourceMaterial {
+  id         String   @id @default(uuid())
+  sourceUrl  String   @map("source_url")
+  genreHint  String   @map("genre_hint")
+  title      String
+  rawText    String   @map("raw_text")
+  usedCount  Int      @default(0) @map("used_count")
+  crawledAt  DateTime @default(now()) @map("crawled_at")
+
+  inspirations StoryInspiration[]
+
+  @@index([genreHint, usedCount])
+  @@map("source_materials")
+}
+
+/// Truyện do AI sinh ra — nội dung chính thức, thuộc sở hữu của site.
+model Story {
+  id               String      @id @default(uuid())
+  title            String
+  slug             String      @unique
+  authorName       String      @default("AI Sáng Tác") @map("author_name")
+  description      String?
+  coverImageUrl    String?     @map("cover_image_url")
+  status           StoryStatus @default(ongoing)
+  totalChapters    Int         @default(0) @map("total_chapters")
+  viewCount        Int         @default(0) @map("view_count")
+  generationModel  String?     @map("generation_model")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  chapters     Chapter[]
+  favorites    Favorite[]
+  genres       StoryGenre[]
+  inspirations StoryInspiration[]
+
+  @@map("stories")
+}
+
+model Genre {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  stories StoryGenre[]
+
+  @@map("genres")
+}
+
+model StoryGenre {
+  storyId String @map("story_id")
+  genreId String @map("genre_id")
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, genreId])
+  @@map("story_genres")
+}
+
+/// Ghi nhận nội bộ: Story nào lấy cảm hứng từ SourceMaterial nào (audit, không public).
+model StoryInspiration {
+  storyId          String @map("story_id")
+  sourceMaterialId String @map("source_material_id")
+
+  story          Story          @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  sourceMaterial SourceMaterial @relation(fields: [sourceMaterialId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, sourceMaterialId])
+  @@map("story_inspirations")
+}
+
+model Chapter {
+  id                    String        @id @default(uuid())
+  storyId               String        @map("story_id")
+  chapterNumber         Int           @map("chapter_number")
+  title                 String
+  textContent           String        @map("text_content")
+  audioUrl              String?       @map("audio_url")
+  audioDurationSeconds  Int?          @map("audio_duration_seconds")
+  status                ChapterStatus @default(pending)
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  story             Story               @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  listeningProgress ListeningProgress[]
+
+  @@unique([storyId, chapterNumber])
+  @@index([storyId, status])
+  @@map("chapters")
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  storyId   String   @map("story_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId])
+  @@map("favorites")
+}
+
+/// Vị trí nghe dở của user trong 1 chương, phục vụ tính năng "nghe tiếp".
+model ListeningProgress {
+  userId          String   @map("user_id")
+  chapterId       String   @map("chapter_id")
+  positionSeconds Int      @default(0) @map("position_seconds")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@id([userId, chapterId])
+  @@map("listening_progress")
+}
