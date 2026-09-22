@@ -1,0 +1,42 @@
+name: Sinh truyện mới + TTS
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 9:00 sáng giờ Việt Nam hàng ngày (UTC+7)
+  workflow_dispatch:
+    inputs:
+      genre:
+        description: "Thể loại cần sinh truyện"
+        required: false
+        default: "Kiếm hiệp"
+
+jobs:
+  generate-and-tts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bot-pipeline
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cài dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sinh truyện mới bằng Gemini
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.6-flash
+        run: python pipeline.py generate "${{ github.event.inputs.genre || 'Kiếm hiệp' }}" --num-sources 3
+
+      - name: Chuyển toàn bộ chương đang chờ thành audio
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_AUDIO_BUCKET: Audio
+        run: python pipeline.py tts --provider edge --limit 20
