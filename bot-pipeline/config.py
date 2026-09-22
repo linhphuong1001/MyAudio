@@ -17,3 +17,7 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 FPT_AI_API_KEY = os.environ.get("FPT_AI_API_KEY", "")
 AUDIO_OUTPUT_DIR = os.environ.get("AUDIO_OUTPUT_DIR", "./output/audio")
 AUDIO_PUBLIC_BASE_URL = os.environ.get("AUDIO_PUBLIC_BASE_URL", "http://localhost:8080/audio")
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+SUPABASE_AUDIO_BUCKET = os.environ.get("SUPABASE_AUDIO_BUCKET", "audio")

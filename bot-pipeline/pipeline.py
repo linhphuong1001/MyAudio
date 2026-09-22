@@ -5,10 +5,11 @@ import os
 
 from mutagen.mp3 import MP3
 
-from config import AUDIO_OUTPUT_DIR, AUDIO_PUBLIC_BASE_URL
+from config import AUDIO_OUTPUT_DIR, AUDIO_PUBLIC_BASE_URL, SUPABASE_URL
 from crawler import crawl_and_store
 from db import get_connection, get_pending_chapters, mark_chapter_ready, update_chapter_status
 from generator import generate_and_save_story
+from storage import upload_audio
 from tts import synthesize
 
 
@@ -48,7 +49,12 @@ def run_tts(provider: str, limit: int) -> None:
             f.write(audio_bytes)
 
         duration_seconds = int(MP3(file_path).info.length)
-        audio_url = f"{AUDIO_PUBLIC_BASE_URL}/{file_name}"
+
+        if SUPABASE_URL:
+            audio_url = upload_audio(file_name, audio_bytes)
+        else:
+            audio_url = f"{AUDIO_PUBLIC_BASE_URL}/{file_name}"
+
         with get_connection() as conn:
             mark_chapter_ready(conn, chapter["id"], audio_url, duration_seconds)
         print(f"[tts] Xong chương {chapter['chapter_number']} ({duration_seconds}s) -> {audio_url}")
