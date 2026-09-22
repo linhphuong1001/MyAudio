@@ -1,4 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+function getBaseUrl(): string {
+  if (typeof window !== "undefined") return ""; // trình duyệt: URL tương đối là đủ
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return `http://localhost:${process.env.PORT ?? 3000}`;
+}
 
 export interface Genre {
   id: string;
@@ -29,7 +33,7 @@ export interface Chapter {
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${getBaseUrl()}/api${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
