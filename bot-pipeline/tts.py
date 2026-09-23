@@ -11,6 +11,7 @@ FPT_TTS_URL = "https://api.fpt.ai/hmi/tts/v5"
 EDGE_TTS_VOICE = "vi-VN-HoaiMyNeural"
 EDGE_TTS_RATE = "+15%"
 EDGE_TTS_MAX_RETRIES = 5
+EDGE_TTS_TIMEOUT_SECONDS = 180
 
 
 def synthesize_fpt(text: str, voice: str = "banmai") -> bytes:
@@ -58,16 +59,19 @@ def synthesize_edge(text: str) -> bytes:
     rõ rệt, nhưng server không chính thức này thi thoảng chập chờn nên cần
     retry vài lần trước khi báo lỗi thật."""
 
+    async def _synthesize_once() -> bytes:
+        buffer = io.BytesIO()
+        communicate = edge_tts.Communicate(text, EDGE_TTS_VOICE, rate=EDGE_TTS_RATE)
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                buffer.write(chunk["data"])
+        return buffer.getvalue()
+
     async def _run() -> bytes:
         for attempt in range(1, EDGE_TTS_MAX_RETRIES + 1):
             try:
-                buffer = io.BytesIO()
-                communicate = edge_tts.Communicate(text, EDGE_TTS_VOICE, rate=EDGE_TTS_RATE)
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        buffer.write(chunk["data"])
-                return buffer.getvalue()
-            except edge_tts.exceptions.NoAudioReceived:
+                return await asyncio.wait_for(_synthesize_once(), timeout=EDGE_TTS_TIMEOUT_SECONDS)
+            except (edge_tts.exceptions.NoAudioReceived, TimeoutError, asyncio.TimeoutError):
                 if attempt == EDGE_TTS_MAX_RETRIES:
                     raise
                 await asyncio.sleep(2 * attempt)

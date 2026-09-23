@@ -15,7 +15,7 @@ export default async function HomePage() {
       fetchStories({ sort: "hot" }),
     ]);
   } catch {
-    loadError = "Không kết nối được tới máy chủ. Hãy đảm bảo web-backend đang chạy.";
+    loadError = "Không kết nối được tới cơ sở dữ liệu. Kiểm tra lại biến môi trường DATABASE_URL.";
   }
 
   return (
