@@ -93,31 +93,39 @@ def _strip_json_fence(text: str) -> str:
 
 def generate_and_save_story(genre: str, num_sources: int = 3) -> str | None:
     """Chọn N SourceMaterials ít bị dùng nhất cùng thể loại, sinh 1 truyện mới
-    qua Gemini, và ghi Story + Chapters (status='pending') vào DB."""
+    qua Gemini, và ghi Story + Chapters (status='pending') vào DB.
+
+    Chỉ mở kết nối DB khi thực sự đọc/ghi — không giữ mở suốt lúc gọi Gemini
+    (có thể mất vài phút cho 10 chương + retry), vì Neon (dùng pooler) tự
+    đóng kết nối rảnh quá lâu, gây lỗi "SSL connection has been closed
+    unexpectedly" nếu giữ 1 connection xuyên suốt.
+    """
     with get_connection() as conn:
         source_materials = get_source_materials_by_genre(conn, genre, limit=num_sources)
-        if len(source_materials) < num_sources:
-            print(f"[generator] Chưa đủ SourceMaterials cho thể loại '{genre}' (cần {num_sources}).")
-            return None
 
-        context = build_inspiration_context(source_materials)
-        outline = generate_outline(genre, context)
-        print(f"[generator] Outline: {outline['title']} ({outline['total_chapters']} chương dự kiến)")
+    if len(source_materials) < num_sources:
+        print(f"[generator] Chưa đủ SourceMaterials cho thể loại '{genre}' (cần {num_sources}).")
+        return None
 
-        chapters = []
-        previous_summary = ""
-        for chapter_number in range(1, outline["total_chapters"] + 1):
-            text_content = generate_chapter(outline, chapter_number, previous_summary)
-            chapters.append(
-                {
-                    "chapter_number": chapter_number,
-                    "title": f"Chương {chapter_number}",
-                    "text_content": text_content,
-                }
-            )
-            previous_summary += f"\nChương {chapter_number}: {text_content[:300]}..."
-            print(f"[generator] Đã sinh chương {chapter_number}/{outline['total_chapters']}")
+    context = build_inspiration_context(source_materials)
+    outline = generate_outline(genre, context)
+    print(f"[generator] Outline: {outline['title']} ({outline['total_chapters']} chương dự kiến)")
 
+    chapters = []
+    previous_summary = ""
+    for chapter_number in range(1, outline["total_chapters"] + 1):
+        text_content = generate_chapter(outline, chapter_number, previous_summary)
+        chapters.append(
+            {
+                "chapter_number": chapter_number,
+                "title": f"Chương {chapter_number}",
+                "text_content": text_content,
+            }
+        )
+        previous_summary += f"\nChương {chapter_number}: {text_content[:300]}..."
+        print(f"[generator] Đã sinh chương {chapter_number}/{outline['total_chapters']}")
+
+    with get_connection() as conn:
         story_id = create_generated_story(
             conn,
             title=outline["title"],
@@ -127,8 +135,8 @@ def generate_and_save_story(genre: str, num_sources: int = 3) -> str | None:
             chapters=chapters,
             source_material_ids=[sm["id"] for sm in source_materials],
         )
-        print(f"[generator] Đã lưu Story {story_id}: {outline['title']}")
-        return story_id
+    print(f"[generator] Đã lưu Story {story_id}: {outline['title']}")
+    return story_id
 
 
 if __name__ == "__main__":
