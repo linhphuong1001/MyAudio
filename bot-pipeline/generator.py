@@ -10,8 +10,8 @@ from config import GEMINI_API_KEY, GEMINI_MODEL
 from db import create_generated_story, get_connection, get_source_materials_by_genre
 
 INSPIRATION_EXCERPT_CHARS = 800
-MAX_RETRIES = 3
-RETRY_BACKOFF_SECONDS = 10
+MAX_RETRIES = 6
+RETRY_BACKOFF_SECONDS = 15
 
 _client: genai.Client | None = None
 
