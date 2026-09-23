@@ -13,7 +13,7 @@ load_dotenv()
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
 FPT_AI_API_KEY = os.environ.get("FPT_AI_API_KEY", "")
 AUDIO_OUTPUT_DIR = os.environ.get("AUDIO_OUTPUT_DIR", "./output/audio")
 AUDIO_PUBLIC_BASE_URL = os.environ.get("AUDIO_PUBLIC_BASE_URL", "http://localhost:8080/audio")

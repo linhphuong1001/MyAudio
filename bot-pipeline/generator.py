@@ -4,7 +4,7 @@ import json
 import time
 
 from google import genai
-from google.genai.errors import ServerError
+from google.genai.errors import ClientError, ServerError
 
 from config import GEMINI_API_KEY, GEMINI_MODEL
 from db import create_generated_story, get_connection, get_source_materials_by_genre
@@ -32,6 +32,10 @@ def _generate_text(prompt: str) -> str:
         try:
             response = _get_client().models.generate_content(model=GEMINI_MODEL, contents=prompt)
             return response.text
+        except ClientError as exc:
+            if "RESOURCE_EXHAUSTED" in str(exc):
+                print(f"[generator] Đã hết hạn mức Gemini trong ngày cho model '{GEMINI_MODEL}' — không retry, cần đợi reset (thường theo giờ Thái Bình Dương).")
+            raise
         except ServerError as exc:
             if attempt == MAX_RETRIES:
                 raise

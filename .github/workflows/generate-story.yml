@@ -30,7 +30,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-3.6-flash
+          GEMINI_MODEL: gemini-flash-lite-latest
         run: python pipeline.py generate "${{ github.event.inputs.genre || 'Kiếm hiệp' }}" --num-sources 3
 
       - name: Chuyển toàn bộ chương đang chờ thành audio
