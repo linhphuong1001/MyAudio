@@ -11,7 +11,13 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export default function AudioPlayer({ src }: { src: string }) {
+export default function AudioPlayer({
+  src,
+  onPlayingChange,
+}: {
+  src: string;
+  onPlayingChange?: (playing: boolean) => void;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -24,27 +30,39 @@ export default function AudioPlayer({ src }: { src: string }) {
 
     const onLoadedMetadata = () => setDuration(audio.duration);
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onEnded = () => setIsPlaying(false);
+    const onPlay = () => {
+      setIsPlaying(true);
+      onPlayingChange?.(true);
+    };
+    const onStop = () => {
+      setIsPlaying(false);
+      onPlayingChange?.(false);
+    };
 
     audio.addEventListener("loadedmetadata", onLoadedMetadata);
     audio.addEventListener("timeupdate", onTimeUpdate);
-    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onStop);
+    audio.addEventListener("ended", onStop);
     return () => {
       audio.removeEventListener("loadedmetadata", onLoadedMetadata);
       audio.removeEventListener("timeupdate", onTimeUpdate);
-      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onStop);
+      audio.removeEventListener("ended", onStop);
+      onPlayingChange?.(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (isPlaying) {
-      audio.pause();
+    if (audio.paused) {
+      audio.play().catch(() => setIsPlaying(false));
     } else {
-      audio.play();
+      audio.pause();
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -7,3 +7,5 @@ gTTS==2.5.4
 Unidecode==1.4.0
 mutagen==1.48.1
 edge-tts==7.2.8
+pillow==12.3.0
+imageio-ffmpeg==0.6.0

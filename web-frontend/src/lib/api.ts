@@ -9,7 +9,6 @@ export interface StorySummary {
   id: string;
   title: string;
   slug: string;
-  authorName: string;
   description: string | null;
   coverImageUrl: string | null;
   status: "ongoing" | "completed";

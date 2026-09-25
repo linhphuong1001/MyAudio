@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AudioPlayer from "./AudioPlayer";
+import BackgroundMusic from "./BackgroundMusic";
 import type { Chapter } from "@/lib/api";
 
 function chapterLabel(chapter: Chapter): string {
@@ -13,6 +14,7 @@ function chapterLabel(chapter: Chapter): string {
 export default function ChapterListPlayer({ chapters }: { chapters: Chapter[] }) {
   const readyChapters = chapters.filter((c) => c.audioUrl);
   const [selected, setSelected] = useState<Chapter | null>(readyChapters[0] ?? null);
+  const [narrationPlaying, setNarrationPlaying] = useState(false);
 
   if (readyChapters.length === 0) {
     return <p className="text-sm text-gray-500">Truyện chưa có chương nào sẵn sàng để nghe.</p>;
@@ -25,7 +27,8 @@ export default function ChapterListPlayer({ chapters }: { chapters: Chapter[] })
           <p className="mb-2 text-sm font-medium text-gray-700">
             Đang nghe: {chapterLabel(selected)}
           </p>
-          <AudioPlayer key={selected.id} src={selected.audioUrl} />
+          <AudioPlayer key={selected.id} src={selected.audioUrl} onPlayingChange={setNarrationPlaying} />
+          <BackgroundMusic narrationPlaying={narrationPlaying} />
         </div>
       )}
 

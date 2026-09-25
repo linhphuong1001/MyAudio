@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 
 from google import genai
@@ -14,15 +15,17 @@ MAX_RETRIES = 6
 RETRY_BACKOFF_SECONDS = 15
 
 _client: genai.Client | None = None
+_client_lock = threading.Lock()
 
 
 def _get_client() -> genai.Client:
     """Khởi tạo client Gemini khi thực sự cần dùng, không phải lúc import
     module — để lệnh crawl/tts vẫn chạy được mà không cần GEMINI_API_KEY."""
     global _client
-    if _client is None:
-        _client = genai.Client(api_key=GEMINI_API_KEY)
-    return _client
+    with _client_lock:  # nhiều luồng vẽ bìa cùng gọi -> tránh tạo 2 client, 1 cái bị đóng
+        if _client is None:
+            _client = genai.Client(api_key=GEMINI_API_KEY)
+        return _client
 
 
 def _generate_text(prompt: str) -> str:

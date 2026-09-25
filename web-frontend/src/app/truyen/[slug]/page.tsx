@@ -19,7 +19,7 @@ export default async function StoryDetailPage({ params }: { params: Promise<{ sl
   return (
     <div>
       <div className="mb-4 flex gap-4">
-        <div className="h-40 w-28 shrink-0 overflow-hidden rounded bg-gray-100">
+        <div className="aspect-[3/4] w-32 shrink-0 overflow-hidden rounded-lg bg-gray-100 shadow-md sm:w-40">
           {story.coverImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={story.coverImageUrl} alt={story.title} className="h-full w-full object-cover" />
@@ -27,7 +27,6 @@ export default async function StoryDetailPage({ params }: { params: Promise<{ sl
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{story.title}</h1>
-          <p className="text-sm text-gray-500">Tác giả: {story.authorName}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {story.genres.map((genre) => (
               <Link

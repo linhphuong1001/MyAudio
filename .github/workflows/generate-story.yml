@@ -39,6 +39,17 @@ jobs:
           INPUT_THEME: ${{ github.event.inputs.theme }}
         run: python pipeline.py auto --genre "$INPUT_GENRE" --theme "$INPUT_THEME"
 
+      - name: Vẽ bìa minh họa cho truyện chưa có bìa
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-flash-lite-latest
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_AUDIO_BUCKET: Audio
+        run: python pipeline.py covers
+
       - name: Chuyển toàn bộ chương đang chờ thành audio
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

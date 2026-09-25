@@ -197,3 +197,30 @@ def count_source_materials(conn, genre_hint: str) -> int:
     with conn.cursor() as cur:
         cur.execute("SELECT count(*) FROM source_materials WHERE genre_hint = %s", (genre_hint,))
         return cur.fetchone()[0]
+
+
+def get_stories_for_covers(conn, only_missing: bool = True) -> list[dict]:
+    """Truyện cần vẽ bìa (kèm mô tả + thể loại). only_missing=False: lấy tất cả để vẽ lại."""
+    where = "WHERE s.cover_image_url IS NULL" if only_missing else ""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            f"""
+            SELECT s.id, s.title, COALESCE(s.description, '') AS description,
+                   COALESCE(array_agg(g.name ORDER BY g.name) FILTER (WHERE g.name IS NOT NULL), '{{}}') AS genres
+            FROM stories s
+            LEFT JOIN story_genres sg ON sg.story_id = s.id
+            LEFT JOIN genres g ON g.id = sg.genre_id
+            {where}
+            GROUP BY s.id
+            ORDER BY s.created_at
+            """
+        )
+        return cur.fetchall()
+
+
+def set_story_cover(conn, story_id: str, cover_url: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE stories SET cover_image_url = %s, updated_at = now() WHERE id = %s",
+            (cover_url, story_id),
+        )

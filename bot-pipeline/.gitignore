@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .env
 output/
+
+# Nhạc nền có bản quyền: chỉ commit khi đã được phép sử dụng
+assets/music/

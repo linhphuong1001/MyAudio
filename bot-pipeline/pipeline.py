@@ -3,22 +3,28 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 from mutagen.mp3 import MP3
 
 from config import AUDIO_OUTPUT_DIR, AUDIO_PUBLIC_BASE_URL, SUPABASE_URL
 from crawler import crawl_and_store, crawl_genre
+from covers import render_cover
 from db import (
     count_source_materials,
     count_stories_by_genre,
     get_connection,
     get_pending_chapters,
+    get_stories_for_covers,
     mark_chapter_ready,
+    set_story_cover,
     update_chapter_status,
 )
 from generator import generate_and_save_story
 from genres import BASE_GENRE_SLUGS, THEMES_BY_BASE, all_themes, canonical_name, genre_listing_url
-from storage import upload_audio
+from mixer import find_music_file, mix_background
+from storage import upload_audio, upload_file
 from tts import synthesize
 
 NUM_SOURCES = 3
@@ -78,6 +84,40 @@ def run_auto(genre: str | None, theme: str | None) -> None:
     raise SystemExit("[auto] Không cặp thể loại nào sinh được truyện.")
 
 
+def _make_cover(story: dict) -> tuple[dict, str]:
+    png = render_cover(story["title"], list(story["genres"]), story["description"])
+    file_name = f"covers/{story['id']}-{int(time.time())}.png"  # đổi tên mỗi lần để tránh cache ảnh cũ
+    if SUPABASE_URL:
+        url = upload_file(file_name, png, "image/png")
+    else:
+        os.makedirs(os.path.join(AUDIO_OUTPUT_DIR, "covers"), exist_ok=True)
+        with open(os.path.join(AUDIO_OUTPUT_DIR, file_name), "wb") as f:
+            f.write(png)
+        url = f"{AUDIO_PUBLIC_BASE_URL}/{file_name}"
+    return story, url
+
+
+def run_covers(redo_all: bool, titles: list[str] | None = None) -> None:
+    """Vẽ bìa minh họa theo nội dung cho truyện chưa có bìa (hoặc tất cả nếu --all),
+    upload lên Supabase và lưu URL vào DB. Vẽ song song 3 ảnh vì AI Horde có hàng đợi."""
+    with get_connection() as conn:
+        stories = get_stories_for_covers(conn, only_missing=not (redo_all or titles))
+    if titles:
+        wanted = {t.strip().lower() for t in titles}
+        stories = [st for st in stories if st["title"].lower() in wanted]
+
+    if not stories:
+        print("[covers] Mọi truyện đều đã có bìa.")
+        return
+
+    print(f"[covers] Cần vẽ {len(stories)} bìa...")
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        for story, url in pool.map(_make_cover, stories):
+            with get_connection() as conn:
+                set_story_cover(conn, story["id"], url)
+            print(f"[covers] Xong '{story['title']}' -> {url}")
+
+
 def run_tts(provider: str, limit: int) -> None:
     os.makedirs(AUDIO_OUTPUT_DIR, exist_ok=True)
 
@@ -87,6 +127,10 @@ def run_tts(provider: str, limit: int) -> None:
     if not chapters:
         print("[tts] Không có chương nào đang chờ xử lý.")
         return
+
+    music_path = find_music_file()
+    if music_path:
+        print(f"[tts] Sẽ trộn nhạc nền: {os.path.basename(music_path)}")
 
     for chapter in chapters:
         with get_connection() as conn:
@@ -99,6 +143,9 @@ def run_tts(provider: str, limit: int) -> None:
             with get_connection() as conn:
                 update_chapter_status(conn, chapter["id"], "failed")
             continue
+
+        if music_path:
+            audio_bytes = mix_background(audio_bytes, music_path)
 
         file_name = f"{chapter['story_id']}_{chapter['chapter_number']}.mp3"
         file_path = os.path.join(AUDIO_OUTPUT_DIR, file_name)
@@ -137,6 +184,10 @@ if __name__ == "__main__":
     generate_parser.add_argument("genre", help="Thể loại cần sinh, vd: 'Kiếm hiệp'")
     generate_parser.add_argument("--num-sources", type=int, default=3)
 
+    covers_parser = subparsers.add_parser("covers", help="Vẽ bìa minh họa cho các truyện chưa có bìa")
+    covers_parser.add_argument("--all", action="store_true", help="Vẽ lại bìa cho TẤT CẢ truyện")
+    covers_parser.add_argument("--title", action="append", help="Chỉ vẽ lại bìa cho truyện có tên này (dùng nhiều lần được)")
+
     tts_parser = subparsers.add_parser("tts", help="Chuyển các chương đang pending thành audio")
     tts_parser.add_argument("--provider", choices=["opensource", "fpt", "gtts", "edge"], default="opensource")
     tts_parser.add_argument("--limit", type=int, default=10)
@@ -151,5 +202,7 @@ if __name__ == "__main__":
         crawl_genre(args.url, args.genre, args.limit)
     elif args.command == "generate":
         run_generate(args.genre, args.num_sources)
+    elif args.command == "covers":
+        run_covers(args.all, args.title)
     elif args.command == "tts":
         run_tts(args.provider, args.limit)

@@ -11,7 +11,6 @@ export function toStorySummary(story: StoryWithGenres) {
     id: story.id,
     title: story.title,
     slug: story.slug,
-    authorName: story.authorName,
     description: story.description,
     coverImageUrl: story.coverImageUrl,
     status: story.status,
