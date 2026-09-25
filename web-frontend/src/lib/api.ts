@@ -1,9 +1,3 @@
-function getBaseUrl(): string {
-  if (typeof window !== "undefined") return ""; // trình duyệt: URL tương đối là đủ
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return `http://localhost:${process.env.PORT ?? 3000}`;
-}
-
 export interface Genre {
   id: string;
   name: string;
@@ -33,7 +27,7 @@ export interface Chapter {
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${getBaseUrl()}/api${path}`, {
+  const res = await fetch(`/api${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -47,27 +41,6 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   }
 
   return res.json() as Promise<T>;
-}
-
-export function fetchGenres() {
-  return apiFetch<Genre[]>("/genres");
-}
-
-export function fetchStories(params: { genre?: string; search?: string; sort?: "new" | "hot" } = {}) {
-  const query = new URLSearchParams();
-  if (params.genre) query.set("genre", params.genre);
-  if (params.search) query.set("search", params.search);
-  if (params.sort) query.set("sort", params.sort);
-  const qs = query.toString();
-  return apiFetch<StorySummary[]>(`/stories${qs ? `?${qs}` : ""}`);
-}
-
-export function fetchStory(slug: string) {
-  return apiFetch<StorySummary>(`/stories/${slug}`);
-}
-
-export function fetchChapters(slug: string) {
-  return apiFetch<Chapter[]>(`/stories/${slug}/chapters`);
 }
 
 export function registerUser(data: { email: string; password: string; displayName: string }) {

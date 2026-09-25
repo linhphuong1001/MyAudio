@@ -1,21 +1,22 @@
 import GenreChips from "@/components/GenreChips";
 import StoryCard from "@/components/StoryCard";
-import { fetchStories } from "@/lib/api";
+import { getStories } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  let newStories: Awaited<ReturnType<typeof fetchStories>> = [];
-  let hotStories: Awaited<ReturnType<typeof fetchStories>> = [];
+  let newStories: Awaited<ReturnType<typeof getStories>> = [];
+  let hotStories: Awaited<ReturnType<typeof getStories>> = [];
   let loadError: string | null = null;
 
   try {
     [newStories, hotStories] = await Promise.all([
-      fetchStories({ sort: "new" }),
-      fetchStories({ sort: "hot" }),
+      getStories({ sort: "new" }),
+      getStories({ sort: "hot" }),
     ]);
-  } catch {
-    loadError = "Không kết nối được tới cơ sở dữ liệu. Kiểm tra lại biến môi trường DATABASE_URL.";
+  } catch (error) {
+    console.error("[HomePage] Không tải được danh sách truyện:", error);
+    loadError = "Không tải được danh sách truyện lúc này. Vui lòng thử lại sau ít phút.";
   }
 
   return (

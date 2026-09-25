@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchChapters, fetchStory } from "@/lib/api";
+import { getReadyChapters, getStory } from "@/lib/data";
 import ChapterListPlayer from "@/components/ChapterListPlayer";
 import FavoriteButton from "@/components/FavoriteButton";
 
@@ -9,14 +9,12 @@ export const dynamic = "force-dynamic";
 export default async function StoryDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  let story: Awaited<ReturnType<typeof fetchStory>>;
-  try {
-    story = await fetchStory(slug);
-  } catch {
+  const story = await getStory(slug);
+  if (!story) {
     notFound();
   }
 
-  const chapters = await fetchChapters(slug).catch(() => []);
+  const chapters = (await getReadyChapters(slug)) ?? [];
 
   return (
     <div>

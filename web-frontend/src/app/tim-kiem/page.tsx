@@ -1,5 +1,5 @@
 import StoryCard from "@/components/StoryCard";
-import { fetchStories } from "@/lib/api";
+import { getStories } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +10,11 @@ export default async function SearchPage({
 }) {
   const { q } = await searchParams;
 
-  let stories: Awaited<ReturnType<typeof fetchStories>> = [];
+  let stories: Awaited<ReturnType<typeof getStories>> = [];
   let loadError: string | null = null;
   if (q) {
     try {
-      stories = await fetchStories({ search: q });
+      stories = await getStories({ search: q });
     } catch {
       loadError = "Không kết nối được tới máy chủ.";
     }

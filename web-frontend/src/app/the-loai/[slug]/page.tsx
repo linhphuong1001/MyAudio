@@ -1,16 +1,16 @@
 import GenreChips from "@/components/GenreChips";
 import StoryCard from "@/components/StoryCard";
-import { fetchStories } from "@/lib/api";
+import { getStories } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export default async function GenrePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  let stories: Awaited<ReturnType<typeof fetchStories>> = [];
+  let stories: Awaited<ReturnType<typeof getStories>> = [];
   let loadError: string | null = null;
   try {
-    stories = await fetchStories({ genre: slug });
+    stories = await getStories({ genre: slug });
   } catch {
     loadError = "Không kết nối được tới máy chủ.";
   }

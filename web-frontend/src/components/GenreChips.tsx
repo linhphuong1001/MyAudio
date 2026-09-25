@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { fetchGenres } from "@/lib/api";
+import { getGenres } from "@/lib/data";
 
 export default async function GenreChips({ activeSlug }: { activeSlug?: string }) {
-  let genres: Awaited<ReturnType<typeof fetchGenres>> = [];
+  let genres: Awaited<ReturnType<typeof getGenres>> = [];
   try {
-    genres = await fetchGenres();
+    genres = await getGenres();
   } catch {
     return null;
   }
