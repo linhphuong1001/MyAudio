@@ -10,6 +10,7 @@ from db import get_connection, insert_source_material
 USER_AGENT = "Mozilla/5.0 (compatible; AudioStoryBot/1.0)"
 REQUEST_DELAY_SECONDS = 1.5
 MAX_CHAPTERS = 30
+MAX_LISTING_PAGES = 5
 
 
 def _get_soup(url: str) -> BeautifulSoup:
@@ -102,12 +103,24 @@ def list_story_urls(genre_page_url: str) -> list[str]:
 def crawl_genre(genre_page_url: str, genre_name: str, limit: int) -> list[str]:
     """Crawl tối đa `limit` truyện CHƯA crawl từ trang danh sách thể loại,
     gán genre_hint = genre_name để khớp với thể loại dùng khi sinh truyện."""
-    candidates = list_story_urls(genre_page_url)
     saved_ids: list[str] = []
-    for url in candidates:
+    for page in range(1, MAX_LISTING_PAGES + 1):
         if len(saved_ids) >= limit:
             break
-        saved_ids += crawl_and_store([url], genre_override=genre_name)
+        page_url = genre_page_url if page == 1 else f"{genre_page_url}?page={page}"
+        try:
+            candidates = list_story_urls(page_url)
+        except requests.RequestException as exc:
+            print(f"[crawler] Không tải được trang danh sách {page_url}: {exc}")
+            break
+        if not candidates:
+            break
+
+        for url in candidates:
+            if len(saved_ids) >= limit:
+                break
+            saved_ids += crawl_and_store([url], genre_override=genre_name)
+        time.sleep(REQUEST_DELAY_SECONDS)
     return saved_ids
 
 

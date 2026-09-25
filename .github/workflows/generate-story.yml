@@ -6,9 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       genre:
-        description: "Thể loại cần sinh truyện"
+        description: "Thể loại nền: Cổ Đại / Hiện Đại (để trống = tự chọn)"
         required: false
-        default: "Cổ Đại"
+        default: ""
+      theme:
+        description: "Chủ đề, vd: Xuyên Không, Trinh Thám, Cung Đấu (để trống = tự chọn)"
+        required: false
+        default: ""
 
 jobs:
   generate-and-tts:
@@ -26,18 +30,14 @@ jobs:
       - name: Cài dependencies
         run: pip install -r requirements.txt
 
-      - name: Crawl thêm nguồn cảm hứng (tiemchungot.com, thể loại Cổ Đại)
-        continue-on-error: true
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: python pipeline.py crawl-genre "https://www.tiemchungot.com/the-loai/co-dai" "Cổ Đại" --limit 2
-
-      - name: Sinh truyện mới bằng Gemini
+      - name: Tự chọn thể loại/chủ đề, crawl nguồn cảm hứng và sinh truyện mới
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-flash-lite-latest
-        run: python pipeline.py generate "${{ github.event.inputs.genre || 'Cổ Đại' }}" --num-sources 3
+          INPUT_GENRE: ${{ github.event.inputs.genre }}
+          INPUT_THEME: ${{ github.event.inputs.theme }}
+        run: python pipeline.py auto --genre "$INPUT_GENRE" --theme "$INPUT_THEME"
 
       - name: Chuyển toàn bộ chương đang chờ thành audio
         env:

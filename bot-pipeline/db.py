@@ -91,14 +91,14 @@ def create_generated_story(
     conn,
     title: str,
     description: str,
-    genre_name: str,
+    genre_names: list[str],
     generation_model: str,
     chapters: list[dict],
     source_material_ids: list[str],
 ) -> str:
     """Ghi 1 truyện AI sinh ra + các chương (status='pending') + liên kết
     thể loại và nguồn cảm hứng (audit nội bộ)."""
-    genre_id = get_or_create_genre(conn, genre_name)
+    genre_ids = [get_or_create_genre(conn, name) for name in genre_names]
 
     with conn.cursor() as cur:
         base_slug = slugify(title)
@@ -113,10 +113,11 @@ def create_generated_story(
             (story_id, title, slug, description, generation_model, len(chapters)),
         )
 
-        cur.execute(
-            "INSERT INTO story_genres (story_id, genre_id) VALUES (%s, %s)",
-            (story_id, genre_id),
-        )
+        for genre_id in genre_ids:
+            cur.execute(
+                "INSERT INTO story_genres (story_id, genre_id) VALUES (%s, %s)",
+                (story_id, genre_id),
+            )
 
         for source_material_id in source_material_ids:
             cur.execute(
@@ -171,3 +172,28 @@ def mark_chapter_ready(conn, chapter_id: str, audio_url: str, duration_seconds: 
             """,
             (audio_url, duration_seconds, chapter_id),
         )
+
+
+def count_stories_by_genre(conn, genre_names: list[str]) -> dict[str, int]:
+    """Số truyện đã có cho từng thể loại (thể loại chưa có truyện nào -> 0)."""
+    counts = {name: 0 for name in genre_names}
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT g.name, count(sg.story_id)
+            FROM genres g
+            LEFT JOIN story_genres sg ON sg.genre_id = g.id
+            WHERE g.name = ANY(%s)
+            GROUP BY g.name
+            """,
+            (genre_names,),
+        )
+        for name, count in cur.fetchall():
+            counts[name] = count
+    return counts
+
+
+def count_source_materials(conn, genre_hint: str) -> int:
+    with conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM source_materials WHERE genre_hint = %s", (genre_hint,))
+        return cur.fetchone()[0]

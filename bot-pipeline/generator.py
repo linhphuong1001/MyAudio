@@ -55,7 +55,8 @@ def build_inspiration_context(source_materials: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
-def generate_outline(genre: str, inspiration_context: str) -> dict:
+def generate_outline(genre: str, inspiration_context: str, theme: str | None = None) -> dict:
+    theme_line = f" Truyện mới phải mang chủ đề nổi bật: {theme}." if theme else ""
     prompt = f"""Bạn là một tác giả truyện {genre} tiếng Việt.
 Dưới đây là vài đoạn trích từ các truyện {genre} khác để bạn tham khảo VĂN PHONG
 và MÔ-TÍP chung của thể loại (không được sao chép tên nhân vật, tên riêng,
@@ -64,7 +65,7 @@ hay bất kỳ đoạn văn nào bên dưới):
 {inspiration_context}
 
 Hãy SÁNG TÁC một truyện {genre} HOÀN TOÀN MỚI, với nhân vật và cốt truyện
-của riêng bạn. Chỉ trả về JSON đúng format sau, không thêm chữ nào khác:
+của riêng bạn.{theme_line} Chỉ trả về JSON đúng format sau, không thêm chữ nào khác:
 {{
   "title": "Tên truyện mới",
   "characters": ["Nhân vật A - mô tả ngắn", "Nhân vật B - mô tả ngắn"],
@@ -95,7 +96,7 @@ def _strip_json_fence(text: str) -> str:
     return stripped.strip()
 
 
-def generate_and_save_story(genre: str, num_sources: int = 3) -> str | None:
+def generate_and_save_story(genre: str, num_sources: int = 3, theme: str | None = None) -> str | None:
     """Chọn N SourceMaterials ít bị dùng nhất cùng thể loại, sinh 1 truyện mới
     qua Gemini, và ghi Story + Chapters (status='pending') vào DB.
 
@@ -112,7 +113,7 @@ def generate_and_save_story(genre: str, num_sources: int = 3) -> str | None:
         return None
 
     context = build_inspiration_context(source_materials)
-    outline = generate_outline(genre, context)
+    outline = generate_outline(genre, context, theme)
     print(f"[generator] Outline: {outline['title']} ({outline['total_chapters']} chương dự kiến)")
 
     chapters = []
@@ -134,7 +135,7 @@ def generate_and_save_story(genre: str, num_sources: int = 3) -> str | None:
             conn,
             title=outline["title"],
             description=outline["plot_summary"],
-            genre_name=genre,
+            genre_names=[genre, theme] if theme else [genre],
             generation_model=GEMINI_MODEL,
             chapters=chapters,
             source_material_ids=[sm["id"] for sm in source_materials],
