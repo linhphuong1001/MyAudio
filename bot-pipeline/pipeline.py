@@ -17,7 +17,7 @@ from db import (
     update_chapter_status,
 )
 from generator import generate_and_save_story
-from genres import BASE_GENRE_SLUGS, THEMES_BY_BASE, genre_listing_url
+from genres import BASE_GENRE_SLUGS, THEMES_BY_BASE, all_themes, canonical_name, genre_listing_url
 from storage import upload_audio
 from tts import synthesize
 
@@ -52,6 +52,8 @@ def run_auto(genre: str | None, theme: str | None) -> None:
     """Tự chọn cặp (thể loại nền, chủ đề) đang có ÍT truyện nhất để web phát triển
     đa dạng; hòa thì chọn ngẫu nhiên. Có thể chỉ định cứng --genre và/hoặc --theme.
     Nếu cặp được chọn không đủ nguồn thì thử cặp kế tiếp."""
+    genre = canonical_name(genre, list(BASE_GENRE_SLUGS))
+    theme = canonical_name(theme, all_themes())
     bases = [genre] if genre else list(BASE_GENRE_SLUGS)
     combos: list[tuple[str, str | None]] = []
     for base in bases:

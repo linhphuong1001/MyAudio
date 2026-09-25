@@ -36,3 +36,17 @@ def all_themes() -> list[str]:
             if theme not in seen:
                 seen.append(theme)
     return seen
+
+
+def canonical_name(name: str | None, known: list[str]) -> str | None:
+    """Đưa tên người dùng nhập (không phân biệt hoa/thường, có/không dấu) về đúng
+    tên chuẩn trong danh sách; không khớp thì giữ nguyên bản đã cắt khoảng trắng."""
+    if not name or not name.strip():
+        return None
+    from utils import slugify
+
+    wanted = slugify(name)
+    for candidate in known:
+        if slugify(candidate) == wanted:
+            return candidate
+    return name.strip()
