@@ -224,3 +224,18 @@ def set_story_cover(conn, story_id: str, cover_url: str) -> None:
             "UPDATE stories SET cover_image_url = %s, updated_at = now() WHERE id = %s",
             (cover_url, story_id),
         )
+
+
+def get_ready_chapters_without_bgm(conn) -> list[dict]:
+    """Chương đã có audio nhưng chưa ở phiên bản cuối (nhạc nền + tốc độ mới), tức tên file
+    chưa có hậu tố -bgm2."""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            """
+            SELECT id, story_id, chapter_number, audio_url
+            FROM chapters
+            WHERE status = 'ready' AND audio_url IS NOT NULL AND audio_url NOT LIKE '%%-bgm2.mp3'
+            ORDER BY story_id, chapter_number
+            """
+        )
+        return cur.fetchall()

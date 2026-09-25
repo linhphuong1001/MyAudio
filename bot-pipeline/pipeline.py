@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import requests
 from mutagen.mp3 import MP3
 
 from config import AUDIO_OUTPUT_DIR, AUDIO_PUBLIC_BASE_URL, SUPABASE_URL
@@ -16,6 +18,7 @@ from db import (
     count_stories_by_genre,
     get_connection,
     get_pending_chapters,
+    get_ready_chapters_without_bgm,
     get_stories_for_covers,
     mark_chapter_ready,
     set_story_cover,
@@ -28,6 +31,7 @@ from storage import upload_audio, upload_file
 from tts import synthesize
 
 NUM_SOURCES = 3
+LEGACY_VOICE_TEMPO = 1.05 / 1.15  # chương cũ đọc +15%, đưa về mức +5% như chương mới
 MAX_COMBO_ATTEMPTS = 3
 
 
@@ -118,6 +122,37 @@ def run_covers(redo_all: bool, titles: list[str] | None = None) -> None:
             print(f"[covers] Xong '{story['title']}' -> {url}")
 
 
+def run_remix() -> None:
+    """Trộn nhạc nền + làm chậm giọng vào các chương ĐÃ có audio: tải file giọng đọc thuần, xử lý,
+    upload thành file mới (đuôi -bgm2, tránh cache) và cập nhật audio_url."""
+    music_path = find_music_file()
+    if not music_path:
+        raise SystemExit("[remix] Không tìm thấy file nhạc nền (assets/music/background.mp3 hoặc BACKGROUND_MUSIC_URL).")
+
+    with get_connection() as conn:
+        chapters = get_ready_chapters_without_bgm(conn)
+    print(f"[remix] {len(chapters)} chương cần trộn nhạc nền")
+
+    for chapter in chapters:
+        original_url = re.sub(r"(-bgm2?)?.mp3$", ".mp3", chapter["audio_url"])  # luôn lấy file giọng đọc thuần
+        voice = requests.get(original_url, timeout=120)
+        voice.raise_for_status()
+        mixed = mix_background(voice.content, music_path, voice_tempo=LEGACY_VOICE_TEMPO)
+
+        file_name = f"{chapter['story_id']}_{chapter['chapter_number']}-bgm2.mp3"
+        new_url = upload_audio(file_name, mixed)
+
+        tmp_path = os.path.join(AUDIO_OUTPUT_DIR, file_name)
+        os.makedirs(AUDIO_OUTPUT_DIR, exist_ok=True)
+        with open(tmp_path, "wb") as f:
+            f.write(mixed)
+        duration_seconds = int(MP3(tmp_path).info.length)
+
+        with get_connection() as conn:
+            mark_chapter_ready(conn, chapter["id"], new_url, duration_seconds)
+        print(f"[remix] Xong chương {chapter['chapter_number']} ({chapter['story_id'][:8]}) -> {new_url}")
+
+
 def run_tts(provider: str, limit: int) -> None:
     os.makedirs(AUDIO_OUTPUT_DIR, exist_ok=True)
 
@@ -147,7 +182,8 @@ def run_tts(provider: str, limit: int) -> None:
         if music_path:
             audio_bytes = mix_background(audio_bytes, music_path)
 
-        file_name = f"{chapter['story_id']}_{chapter['chapter_number']}.mp3"
+        suffix = "-bgm2" if music_path else ""
+        file_name = f"{chapter['story_id']}_{chapter['chapter_number']}{suffix}.mp3"
         file_path = os.path.join(AUDIO_OUTPUT_DIR, file_name)
         with open(file_path, "wb") as f:
             f.write(audio_bytes)
@@ -184,6 +220,8 @@ if __name__ == "__main__":
     generate_parser.add_argument("genre", help="Thể loại cần sinh, vd: 'Kiếm hiệp'")
     generate_parser.add_argument("--num-sources", type=int, default=3)
 
+    subparsers.add_parser("remix", help="Trộn nhạc nền vào các chương đã có audio giọng đọc thuần")
+
     covers_parser = subparsers.add_parser("covers", help="Vẽ bìa minh họa cho các truyện chưa có bìa")
     covers_parser.add_argument("--all", action="store_true", help="Vẽ lại bìa cho TẤT CẢ truyện")
     covers_parser.add_argument("--title", action="append", help="Chỉ vẽ lại bìa cho truyện có tên này (dùng nhiều lần được)")
@@ -202,6 +240,8 @@ if __name__ == "__main__":
         crawl_genre(args.url, args.genre, args.limit)
     elif args.command == "generate":
         run_generate(args.genre, args.num_sources)
+    elif args.command == "remix":
+        run_remix()
     elif args.command == "covers":
         run_covers(args.all, args.title)
     elif args.command == "tts":

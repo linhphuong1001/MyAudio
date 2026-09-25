@@ -56,4 +56,5 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_AUDIO_BUCKET: Audio
+          BACKGROUND_MUSIC_URL: ${{ secrets.SUPABASE_URL }}/storage/v1/object/public/Audio/music/background.mp3
         run: python pipeline.py tts --provider edge --limit 20

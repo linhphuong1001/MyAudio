@@ -9,7 +9,7 @@ from config import FPT_AI_API_KEY
 
 FPT_TTS_URL = "https://api.fpt.ai/hmi/tts/v5"
 EDGE_TTS_VOICE = "vi-VN-HoaiMyNeural"
-EDGE_TTS_RATE = "+15%"
+EDGE_TTS_RATE = "+5%"
 EDGE_TTS_MAX_RETRIES = 5
 EDGE_TTS_TIMEOUT_SECONDS = 180
 
