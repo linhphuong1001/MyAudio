@@ -134,7 +134,7 @@ def run_remix() -> None:
     print(f"[remix] {len(chapters)} chương cần trộn nhạc nền")
 
     for chapter in chapters:
-        original_url = re.sub(r"(-bgm2?)?.mp3$", ".mp3", chapter["audio_url"])  # luôn lấy file giọng đọc thuần
+        original_url = re.sub(r"(-bgm2?)?\.mp3$", ".mp3", chapter["audio_url"])  # luôn lấy file giọng đọc thuần
         voice = requests.get(original_url, timeout=120)
         voice.raise_for_status()
         mixed = mix_background(voice.content, music_path, voice_tempo=LEGACY_VOICE_TEMPO)
