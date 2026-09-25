@@ -1,62 +1,115 @@
 from __future__ import annotations
 
+import time
+
 import requests
 from bs4 import BeautifulSoup
 
 from db import get_connection, insert_source_material
 
 USER_AGENT = "Mozilla/5.0 (compatible; AudioStoryBot/1.0)"
+REQUEST_DELAY_SECONDS = 1.5
+MAX_CHAPTERS = 30
 
 
-def crawl_story(story_url: str) -> dict:
-    """Crawl title, thể loại và toàn bộ nội dung 1 truyện từ trang nguồn.
-    Selector CSS cần chỉnh theo đúng cấu trúc HTML của trang nguồn cụ thể.
-    Dữ liệu lấy về CHỈ dùng làm cảm hứng nội bộ, không đăng trực tiếp.
-    """
-    resp = requests.get(story_url, timeout=15, headers={"User-Agent": USER_AGENT})
+def _get_soup(url: str) -> BeautifulSoup:
+    resp = requests.get(url, timeout=20, headers={"User-Agent": USER_AGENT})
     resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
+    return BeautifulSoup(resp.text, "html.parser")
 
-    title = soup.select_one(".story-title").get_text(strip=True)
-    genre_hint = soup.select_one(".story-genre").get_text(strip=True)
-    content_el = soup.select_one(".story-content")
-    for tag in content_el.select("script, ins, .ads"):
-        tag.decompose()
-    raw_text = content_el.get_text(separator="\n", strip=True)
+
+def crawl_story(story_url: str, genre_override: str | None = None) -> dict:
+    """Crawl 1 truyện từ tiemchungot.com: tiêu đề, thể loại, mô tả và nội dung
+    các chương. Dữ liệu CHỈ dùng làm cảm hứng nội bộ cho AI, không đăng lại.
+    Selector viết riêng cho cấu trúc HTML của trang này."""
+    soup = _get_soup(story_url)
+
+    title = soup.select_one("h1.detail-title").get_text(strip=True)
+    genres = [a.get_text(strip=True) for a in soup.select("a.cate-item[itemprop=genre]")]
+    description_el = soup.select_one(".detail-desc")
+    description = description_el.get_text("\n", strip=True) if description_el else ""
+
+    chapter_urls = [a["href"] for a in soup.select("a.chapter-row")][:MAX_CHAPTERS]
+
+    chapter_texts = []
+    for url in chapter_urls:
+        time.sleep(REQUEST_DELAY_SECONDS)
+        chapter_soup = _get_soup(url)
+        reader = chapter_soup.select_one("#reader")
+        if reader is None:
+            continue
+        for tag in reader.select("script, style, ins, .ads"):
+            tag.decompose()
+        chapter_texts.append(reader.get_text("\n", strip=True))
+
+    raw_text = description + "\n\n" + "\n\n".join(chapter_texts)
 
     return {
         "source_url": story_url,
-        "genre_hint": genre_hint,
+        "genre_hint": genre_override or (genres[0] if genres else "Khác"),
         "title": title,
-        "raw_text": raw_text,
+        "raw_text": raw_text.strip(),
     }
 
 
-def crawl_and_store(story_urls: list[str]) -> list[str]:
-    """Crawl nhiều URL truyện, lưu mỗi truyện thành 1 SourceMaterial.
-    Trả về danh sách id đã lưu."""
+def _already_crawled(conn, source_url: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM source_materials WHERE source_url = %s", (source_url,))
+        return cur.fetchone() is not None
+
+
+def crawl_and_store(story_urls: list[str], genre_override: str | None = None) -> list[str]:
+    """Crawl nhiều URL truyện, lưu mỗi truyện thành 1 SourceMaterial (bỏ qua
+    URL đã crawl). Trả về danh sách id đã lưu."""
     saved_ids = []
-    with get_connection() as conn:
-        for url in story_urls:
-            try:
-                data = crawl_story(url)
-            except Exception as exc:  # noqa: BLE001 - crawler cần bền bỉ, log và bỏ qua URL lỗi
-                print(f"[crawler] Lỗi khi crawl {url}: {exc}")
+    for url in story_urls:
+        with get_connection() as conn:
+            if _already_crawled(conn, url):
+                print(f"[crawler] Bỏ qua (đã crawl): {url}")
                 continue
 
+        try:
+            data = crawl_story(url, genre_override)
+        except Exception as exc:  # noqa: BLE001 - crawler cần bền bỉ, log và bỏ qua URL lỗi
+            print(f"[crawler] Lỗi khi crawl {url}: {exc}")
+            continue
+
+        with get_connection() as conn:
             material_id = insert_source_material(
                 conn, data["source_url"], data["genre_hint"], data["title"], data["raw_text"]
             )
-            saved_ids.append(material_id)
-            print(f"[crawler] Đã lưu SourceMaterial {material_id}: {data['title']}")
+        saved_ids.append(material_id)
+        print(
+            f"[crawler] Đã lưu '{data['title']}' [{data['genre_hint']}] "
+            f"({len(data['raw_text'])} ký tự) -> {material_id}"
+        )
+        time.sleep(REQUEST_DELAY_SECONDS)
 
     return saved_ids
 
 
+def list_story_urls(genre_page_url: str) -> list[str]:
+    """Lấy danh sách URL truyện (giữ thứ tự, bỏ trùng) từ 1 trang danh sách thể loại."""
+    soup = _get_soup(genre_page_url)
+    urls = []
+    for a in soup.select("a[href*='/truyen/']"):
+        href = a["href"].split("#")[0].split("?")[0]
+        if href.startswith("https://www.tiemchungot.com/truyen/") and href not in urls:
+            urls.append(href)
+    return urls
+
+
+def crawl_genre(genre_page_url: str, genre_name: str, limit: int) -> list[str]:
+    """Crawl tối đa `limit` truyện CHƯA crawl từ trang danh sách thể loại,
+    gán genre_hint = genre_name để khớp với thể loại dùng khi sinh truyện."""
+    candidates = list_story_urls(genre_page_url)
+    saved_ids: list[str] = []
+    for url in candidates:
+        if len(saved_ids) >= limit:
+            break
+        saved_ids += crawl_and_store([url], genre_override=genre_name)
+    return saved_ids
+
+
 if __name__ == "__main__":
-    example_urls = [
-        "https://example-source-site.com/truyen-a",
-        "https://example-source-site.com/truyen-b",
-        "https://example-source-site.com/truyen-c",
-    ]
-    crawl_and_store(example_urls)
+    crawl_and_store(["https://www.tiemchungot.com/truyen/tham-hoa-nuong-tu"])

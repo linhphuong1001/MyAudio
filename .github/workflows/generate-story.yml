@@ -2,13 +2,13 @@ name: Sinh truyện mới + TTS
 
 on:
   schedule:
-    - cron: "0 2 * * *" # 9:00 sáng giờ Việt Nam hàng ngày (UTC+7)
+    - cron: "0 2 * * *" # 9:00 sáng giờ Việt Nam hàng ngày (UTC+7), GitHub thường chạy trễ vài giờ
   workflow_dispatch:
     inputs:
       genre:
         description: "Thể loại cần sinh truyện"
         required: false
-        default: "Kiếm hiệp"
+        default: "Cổ Đại"
 
 jobs:
   generate-and-tts:
@@ -26,12 +26,18 @@ jobs:
       - name: Cài dependencies
         run: pip install -r requirements.txt
 
+      - name: Crawl thêm nguồn cảm hứng (tiemchungot.com, thể loại Cổ Đại)
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python pipeline.py crawl-genre "https://www.tiemchungot.com/the-loai/co-dai" "Cổ Đại" --limit 2
+
       - name: Sinh truyện mới bằng Gemini
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-flash-lite-latest
-        run: python pipeline.py generate "${{ github.event.inputs.genre || 'Kiếm hiệp' }}" --num-sources 3
+        run: python pipeline.py generate "${{ github.event.inputs.genre || 'Cổ Đại' }}" --num-sources 3
 
       - name: Chuyển toàn bộ chương đang chờ thành audio
         env:
